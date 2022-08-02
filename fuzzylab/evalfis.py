@@ -8,7 +8,7 @@ def evalfis(fis, user_input, rule_firing=False):
     if type(user_input) is not np.ndarray:
         user_input = np.asarray([user_input])
 
-    if user_input.ndim is 1:
+    if user_input.ndim == 1:
         user_input = np.asarray([user_input])
 
     m, n = user_input.shape
@@ -51,13 +51,16 @@ def fuzzify_input(fis, user_input):
         for j in range(num_inputs):
             crisp_x = user_input[j]
 
-            mf_index = antecedent[j] - 1
-            mf = fis.Inputs[j].MembershipFunctions[mf_index]
-            mu = evalmf (mf, crisp_x)
-
+            mf_index = antecedent[j]
+            if mf_index >=0:
+                mf = fis.Inputs[j].MembershipFunctions[mf_index]
+                mu = evalmf (mf, crisp_x)
+            else: #add 0118
+                mu = 1 #add 0118
             # Store the fuzzified input in rule_input.    
             rule_input[i, j] = mu
     
+    #print(rule_input)
     return rule_input
  
 
@@ -84,7 +87,7 @@ def eval_firing_strength (fis, rule_input):
                 antecedent_mus.append(mu)
 
         # Compute matching degree of the rule.
-        if rule.Connection is 1:
+        if rule.Connection == 1:
             connect = fis.AndMethod
         else:
             connect = fis.OrMethod
@@ -101,8 +104,8 @@ def eval_rules_sugeno(fis, firing_strength, user_input):
     num_outputs = len(fis.Outputs)
 
     # Initialize output matrix to prevent inefficient resizing.
-    rule_output = np.zeros ((2, num_rules * num_outputs))   
-
+    rule_output = np.zeros ((3, num_rules * num_outputs))   #0115 2->3
+    #print(user_input)
     # Compute the (location, height) of the singleton output by each
     # (rule, output) pair:
     #   1. The height is given by the firing strength of the rule, and
@@ -118,10 +121,10 @@ def eval_rules_sugeno(fis, firing_strength, user_input):
         rule = fis.Rules[i]
         rule_firing_strength = firing_strength[i]
 
-        if rule_firing_strength is not 0:
+        if rule_firing_strength != 0:
             for j in range(num_outputs):
                 
-                mf_index = rule.Consequent[j] - 1
+                mf_index = rule.Consequent[j]
 
                 height = rule_firing_strength
 
@@ -130,14 +133,19 @@ def eval_rules_sugeno(fis, firing_strength, user_input):
                 mf = fis.Outputs[j].MembershipFunctions[mf_index]
 
                 if mf.Type == 'constant':
-                    location = mf.Parameters[0]
-
+                    location = mf.Parameters
+                    width = 0
+                else: #0115 add
+                    location = mf.Parameters[1] #0115 add
+                    width = mf.Parameters[2]-mf.Parameters[0] #0115 add
                 # Store result in column of rule_output corresponding
                 # to the (rule, output) pair.   
 
                 rule_output[0, (j - 1) * num_rules + i] = location
                 rule_output[1, (j - 1) * num_rules + i] = height
+                rule_output[2, (j - 1) * num_rules + i] = width #0115 add
     
+    #print(rule_output)
     return rule_output
 
 
@@ -205,6 +213,7 @@ def defuzzify_output_sugeno(fis, aggregated_output):
         next_agg_output = aggregated_output[i]
         x = next_agg_output[0]
         y = next_agg_output[1]
-        output[i] = defuzz(x, y, fis.DefuzzificationMethod)
+        w = next_agg_output[2]
+        output[i] = defuzz(x, y, w, fis.DefuzzificationMethod)
 
     return output
